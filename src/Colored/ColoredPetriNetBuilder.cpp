@@ -324,6 +324,13 @@ namespace unfoldtacpn {
             if(!gen.isInitial())
                 name += "__" + std::to_string(i++);
 
+            TransitionBindings bindings;
+            for (const auto& var : b) {
+                bindings.emplace_back(var.first, var.second->getColorName());
+            }
+            
+            _transitionBindings[name] = std::move(bindings);
+
             // Print bindings for each transition if output stream exists
             if (_output_stream) {     
                 (*_output_stream) << "   <transition id=\"" << name << "\">\n";    

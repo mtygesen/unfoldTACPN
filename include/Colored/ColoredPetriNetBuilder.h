@@ -19,9 +19,13 @@
 namespace unfoldtacpn {
     class ColoredPetriNetBuilder {
     public:
-        typedef std::unordered_map<std::string, const Colored::ColorType*> ColorTypeMap;
-        typedef std::unordered_map<std::string, std::unordered_map<uint32_t , std::string>> PTPlaceMap;
-        typedef std::unordered_map<std::string, std::vector<std::string>> PTTransitionMap;
+        using ColorTypeMap = std::unordered_map<std::string, const Colored::ColorType*>;
+        using PTPlaceMap = std::unordered_map<std::string, std::unordered_map<uint32_t , std::string>>;
+        using PTTransitionMap = std::unordered_map<std::string, std::vector<std::string>>;
+        using PlaceColorIdMap = std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>>;
+        using VariableBinding = std::pair<std::string, std::string>;
+        using TransitionBindings = std::vector<VariableBinding>;
+        using PTTransitionBindingsMap = std::unordered_map<std::string, TransitionBindings>;
 
     public:
         ColoredPetriNetBuilder(std::stringstream *output_stream = nullptr);
@@ -88,17 +92,25 @@ namespace unfoldtacpn {
             return _pttransitionnames;
         }
 
+        const PlaceColorIdMap& getPlaceColorIds() const {
+            return _placeColorIds;
+        }
+
+        const PTTransitionBindingsMap& getTransitionBindings() const {
+            return _transitionBindings;
+        }
 
         void unfold(TAPNBuilderInterface& builder);
         bool resolvePlace(const std::string& placeName, const std::string& colorName, std::string& out) const;
-        void clear() { _sumPlacesNames.clear(); _pttransitionnames.clear(); _ptplacenames.clear(); _placeColorIds.clear(); }
+        void clear() { _sumPlacesNames.clear(); _pttransitionnames.clear(); _ptplacenames.clear(); _placeColorIds.clear(); _transitionBindings.clear(); }
     private:
         std::unordered_map<std::string,uint32_t> _placenames;
         std::unordered_map<std::string,uint32_t> _transitionnames;
         PTPlaceMap _ptplacenames;
-        std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>> _placeColorIds;
+        PlaceColorIdMap _placeColorIds;
         std::unordered_map<std::string, std::string> _sumPlacesNames;
         PTTransitionMap _pttransitionnames;
+        PTTransitionBindingsMap _transitionBindings;
         std::vector< std::tuple<double, double> > _placelocations;
         std::vector< std::tuple<double, double> > _transitionlocations;
 
