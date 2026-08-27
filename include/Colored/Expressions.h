@@ -500,6 +500,9 @@ namespace unfoldtacpn {
             }
 
             virtual uint32_t weight() const = 0;
+            virtual bool isAll() const {
+                return false;
+            }
         };
 
         typedef std::shared_ptr<ArcExpression> ArcExpression_ptr;
@@ -592,8 +595,8 @@ namespace unfoldtacpn {
                     return _number * _all->size();
             }
 
-            bool isAll() const {
-                return (bool)_all;
+            bool isAll() const override {
+                return static_cast<bool>(_all);
             }
 
             bool isSingleColor() const {

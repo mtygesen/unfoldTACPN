@@ -122,8 +122,7 @@ namespace unfoldtacpn {
         arc.place = p;
         arc.transition = t;
         arc.expr = expr;
-        if(arc.expr == nullptr)
-        {
+        if (arc.expr == nullptr && !inhibitor) {
             std::vector<Colored::ColorExpression_ptr> colors{std::make_shared<Colored::DotConstantExpression>()};
             arc.expr = std::make_shared<Colored::NumberOfExpression>(
                                                 std::move(colors), weight);
@@ -352,13 +351,38 @@ namespace unfoldtacpn {
             {
                 unfoldTransport(builder, transport, b, name);
             }
-            unfoldInhibitorArc(builder, transitionId, name);
+            unfoldInhibitorArc(builder, transitionId, b, name);
             offset += 15;
         }
     }
 
-    void ColoredPetriNetBuilder::unfoldInhibitorArc(TAPNBuilderInterface& builder, uint32_t transition, const std::string &newname) {
+    void ColoredPetriNetBuilder::unfoldInhibitorArc(TAPNBuilderInterface& builder, uint32_t transition,
+        const Colored::ExpressionContext::BindingMap& binding, const std::string &newname) {
         for (auto& inhibitor : _inhibitorArcs[transition]) {
+            if (inhibitor.expr != nullptr && !inhibitor.expr->isAll()) {
+                Colored::ExpressionContext context {binding, _colors};
+                auto multiset = inhibitor.expr->eval(context);
+                const Colored::Color* selected = nullptr;
+                for (const auto& color : multiset) {
+                    if (color.second == 0) continue;
+                    if (selected != nullptr && *selected != *color.first) {
+                        std::cerr << "ERROR: An inhibitor arc must select exactly one color\n";
+                        std::exit(ErrorCode);
+                    }
+                    
+                    selected = color.first;
+                }
+
+                if (selected == nullptr) {
+                    std::cerr << "ERROR: An inhibitor arc must select exactly one color\n";
+                    std::exit(ErrorCode);
+                }
+
+                builder.addInputArc(findPlaceName(inhibitor.place, selected), newname, true, inhibitor.weight,
+                    false, true, 0, std::numeric_limits<int>::max());
+                continue;
+            }
+
             auto& place = findSumName(inhibitor.place);
             if(place.size() != 0)
                 builder.addInputArc(place, newname, true, inhibitor.weight, false, true, 0, std::numeric_limits<int>::max());
