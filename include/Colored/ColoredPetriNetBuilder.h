@@ -136,7 +136,8 @@ namespace unfoldtacpn {
         void unfoldTransition(TAPNBuilderInterface& builder, const Colored::Transition& transition);
         void unfoldArc(TAPNBuilderInterface& builder, const Colored::Arc& arc, const Colored::ExpressionContext::BindingMap& binding, const std::string& name);
         void unfoldTransport(TAPNBuilderInterface& builder, const Colored::TransportArc& arc, const Colored::ExpressionContext::BindingMap& binding, const std::string& name);
-        void unfoldInhibitorArc(TAPNBuilderInterface& builder, uint32_t transition, const std::string &newname);
+        void unfoldInhibitorArc(TAPNBuilderInterface& builder, uint32_t transition,
+            const Colored::ExpressionContext::BindingMap& binding, const std::string &newname);
     };
 
     class BindingGenerator {

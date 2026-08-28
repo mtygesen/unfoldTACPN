@@ -54,23 +54,6 @@
     </place>
     <transition angle="0" displayName="true" id="T0" infiniteServer="false" name="T0" nameOffsetX="0" nameOffsetY="0" player="0" positionX="240" positionY="330" priority="0" urgent="false"/>
     <arc id="I0" inscription="[0,inf)" nameOffsetX="0" nameOffsetY="0" source="P0" target="T0" type="tapnInhibitor" weight="3">
-      <hlinscription>
-        <text>1'dot.all</text>
-        <structure>
-          <numberof>
-            <subterm>
-              <numberconstant value="1">
-                <positive/>
-              </numberconstant>
-            </subterm>
-            <subterm>
-              <all>
-                <usersort declaration="dot"/>
-              </all>
-            </subterm>
-          </numberof>
-        </structure>
-      </hlinscription>
       <arcpath arcPointType="false" id="0" xCoord="255" yCoord="210"/>
       <arcpath arcPointType="false" id="1" xCoord="255" yCoord="330"/>
     </arc>

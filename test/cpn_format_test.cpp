@@ -569,6 +569,36 @@ BOOST_AUTO_TEST_CASE(InhibitorArc) {
     BOOST_REQUIRE_EQUAL(p.n_input, 1);
 }
 
+BOOST_AUTO_TEST_CASE(ColoredInhibitorArc) {
+    auto f = loadFile("inhib_arc.xml");
+    BOOST_REQUIRE(f);
+    std::stringstream xml;
+    xml << f.rdbuf();
+    auto model = xml.str();
+    const auto arc = model.find("<arc id=\"I0\"");
+    const auto end = model.find("<arcpath", arc);
+    model.insert(end,
+        "<hlinscription><structure><numberof>"
+        "<subterm><numberconstant value=\"3\"><positive/></numberconstant></subterm>"
+        "<subterm><useroperator declaration=\"1\"/></subterm>"
+        "</numberof></structure></hlinscription>");
+
+    class PBuilder : public DummyBuilder {
+    public:
+        void addInputArc(const std::string &place, const std::string &, bool inhibitor, int weight,
+            bool, bool, int, int) override {
+            BOOST_REQUIRE_EQUAL("P0__1", place);
+            BOOST_REQUIRE(inhibitor);
+            BOOST_REQUIRE_EQUAL(3, weight);
+        }
+    } p;
+
+    std::stringstream input(model);
+    ColoredPetriNetBuilder b;
+    b.parseNet(input);
+    b.unfold(p);
+}
+
 
 BOOST_AUTO_TEST_CASE(SinglePlace) {
 
