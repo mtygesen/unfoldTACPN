@@ -273,7 +273,10 @@ unfoldtacpn::Colored::GuardExpression_ptr PNMLParser::parseGuardExpression(rapid
 
 const Colored::ColorType* PNMLParser::inferGuardColorType(rapidxml::xml_node<>* element) {
     const Colored::ColorType* type = nullptr;
-    for (auto node = element; node; node = node->next_sibling()) {
+    std::vector<rapidxml::xml_node<>*> pending {element};
+    while (!pending.empty()) {
+        auto* node = pending.back();
+        pending.pop_back();
         if (strcmp(node->name(), "variable") == 0) {
             auto variable = _variables.find(node->first_attribute("refvariable")->value());
             if (variable == _variables.end()) {
@@ -287,15 +290,8 @@ const Colored::ColorType* PNMLParser::inferGuardColorType(rapidxml::xml_node<>* 
             type = variable->second->colorType;
         }
 
-        if (node->first_node() != nullptr) {
-            const auto* childType = inferGuardColorType(node->first_node());
-            if (childType != nullptr) {
-                if (type != nullptr && !(*type == *childType)) {
-                    throw std::invalid_argument("All variables in a guard expression must have the same color type.");
-                }
-
-                type = childType;
-            }
+        for (auto* child = node->first_node(); child; child = child->next_sibling()) {
+            pending.push_back(child);
         }
     }
 
@@ -310,10 +306,21 @@ unfoldtacpn::Colored::ColorExpression_ptr PNMLParser::parseColorExpression(rapid
     if (strcmp(element->name(), "dotconstant") == 0) {
         return std::make_shared<unfoldtacpn::Colored::DotConstantExpression>();
     } else if (strcmp(element->name(), "variable") == 0) {
-        return std::make_shared<unfoldtacpn::Colored::VariableExpression>(_variables[element->first_attribute("refvariable")->value()]);
+        const auto* variable = _variables[element->first_attribute("refvariable")->value()];
+        if (type != &_global_scope && !(*type == *variable->colorType)) {
+            throw std::invalid_argument("Variable does not belong to the expected color type.");
+        }
+        
+        return std::make_shared<unfoldtacpn::Colored::VariableExpression>(variable);
     } else if (strcmp(element->name(), "useroperator") == 0) {
-        return std::make_shared<unfoldtacpn::Colored::UserOperatorExpression>(
-            &(*type)[element->first_attribute("declaration")->value()]);
+        auto declaration = element->first_attribute("declaration")->value();
+        for (const auto& color : *type) {
+            if (!color.isTuple() && color.getColorName() == declaration) {
+                return std::make_shared<unfoldtacpn::Colored::UserOperatorExpression>(&color);
+            }
+        }
+
+        throw std::invalid_argument("Guard constant does not belong to the guard variable color type.");
     } else if (strcmp(element->name(), "successor") == 0) {
         return std::make_shared<unfoldtacpn::Colored::SuccessorExpression>(parseColorExpression(element->first_node(), type));
     } else if (strcmp(element->name(), "predecessor") == 0) {
@@ -345,14 +352,14 @@ unfoldtacpn::Colored::ColorExpression_ptr PNMLParser::parseColorExpression(rapid
         auto si = atoll(start);
         auto ei = atoll(end);
         if (type != &_global_scope) {
-            if (type->size() == size_t(ei - si) + 1 && type->begin()->getColorName() == start) {
+            if (value >= si && value <= ei && type->size() == size_t(ei - si) + 1 && type->begin()->getColorName() == start) {
                 const auto* color = &(*type)[static_cast<size_t>(value - si)];
                 return std::make_shared<unfoldtacpn::Colored::UserOperatorExpression>(color);
             }
 
             throw std::invalid_argument("Guard constant does not belong to the guard variable color type.");
         }
-        
+
         for(auto [_, ct] : _colorTypes)
         {
             if(ct->size() != size_t(ei-si)+1) continue;

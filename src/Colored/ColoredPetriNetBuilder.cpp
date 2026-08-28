@@ -32,8 +32,13 @@ namespace unfoldtacpn {
     }
 
     void ColoredPetriNetBuilder::parseNet(std::istream& stream) {
-        PNMLParser parser;
-        parser.parse(stream, this);
+        try {
+            PNMLParser parser;
+            parser.parse(stream, this);
+        } catch (const std::invalid_argument& exception) {
+            std::cerr << "ERROR: Illegal guard: " << exception.what() << '\n';
+            std::exit(ErrorCode);
+        }
     }
 
     void ColoredPetriNetBuilder::addPlace(const std::string &name,
