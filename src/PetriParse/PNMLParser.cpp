@@ -860,6 +860,7 @@ void PNMLParser::parseTransition(rapidxml::xml_node<>* element) {
             parsePosition(it, x, y);
         } else if (strcmp(it->name(), "condition") == 0) {
             expr = parseGuardExpression(it->first_node("structure"), &_global_scope);
+            expr->validateAndInferColorType();
         } else if (strcmp(it->name(), "conditions") == 0) {
             std::cerr << "ERROR: Conditions not supported" << std::endl;
             exit(ErrorCode);
