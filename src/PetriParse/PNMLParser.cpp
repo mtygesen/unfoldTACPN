@@ -25,6 +25,7 @@
 #include <limits>
 #include <istream>
 #include <cstring>
+#include <stdexcept>
 #include <cassert>
 
 
@@ -270,6 +271,41 @@ unfoldtacpn::Colored::GuardExpression_ptr PNMLParser::parseGuardExpression(rapid
     return nullptr;
 }
 
+const Colored::ColorType* PNMLParser::inferGuardColorType(rapidxml::xml_node<>* element) {
+    const Colored::ColorType* type = nullptr;
+    for (auto node = element; node; node = node->next_sibling()) {
+        if (strcmp(node->name(), "variable") == 0) {
+            auto variable = _variables.find(node->first_attribute("refvariable")->value());
+            if (variable == _variables.end()) {
+                throw std::invalid_argument("Unknown variable in guard expression.");
+            }
+
+            if (type != nullptr && !(*type == *variable->second->colorType)) {
+                throw std::invalid_argument("All variables in a guard expression must have the same color type.");
+            }
+
+            type = variable->second->colorType;
+        }
+
+        if (node->first_node() != nullptr) {
+            const auto* childType = inferGuardColorType(node->first_node());
+            if (childType != nullptr) {
+                if (type != nullptr && !(*type == *childType)) {
+                    throw std::invalid_argument("All variables in a guard expression must have the same color type.");
+                }
+
+                type = childType;
+            }
+        }
+    }
+
+    if (type == nullptr) {
+        throw std::invalid_argument("There must be at least one variable in the guard expression.");
+    }
+
+    return type;
+}
+
 unfoldtacpn::Colored::ColorExpression_ptr PNMLParser::parseColorExpression(rapidxml::xml_node<>* element, const Colored::ColorType* type) {
     if (strcmp(element->name(), "dotconstant") == 0) {
         return std::make_shared<unfoldtacpn::Colored::DotConstantExpression>();
@@ -308,6 +344,15 @@ unfoldtacpn::Colored::ColorExpression_ptr PNMLParser::parseColorExpression(rapid
         auto end = intRangeElement->first_attribute("end")->value();
         auto si = atoll(start);
         auto ei = atoll(end);
+        if (type != &_global_scope) {
+            if (type->size() == size_t(ei - si) + 1 && type->begin()->getColorName() == start) {
+                const auto* color = &(*type)[static_cast<size_t>(value - si)];
+                return std::make_shared<unfoldtacpn::Colored::UserOperatorExpression>(color);
+            }
+
+            throw std::invalid_argument("Guard constant does not belong to the guard variable color type.");
+        }
+        
         for(auto [_, ct] : _colorTypes)
         {
             if(ct->size() != size_t(ei-si)+1) continue;
@@ -859,7 +904,8 @@ void PNMLParser::parseTransition(rapidxml::xml_node<>* element) {
         if (strcmp(it->name(), "graphics") == 0) {
             parsePosition(it, x, y);
         } else if (strcmp(it->name(), "condition") == 0) {
-            expr = parseGuardExpression(it->first_node("structure"), &_global_scope);
+            auto structure = it->first_node("structure");
+            expr = parseGuardExpression(structure, inferGuardColorType(structure));
             expr->validateAndInferColorType();
         } else if (strcmp(it->name(), "conditions") == 0) {
             std::cerr << "ERROR: Conditions not supported" << std::endl;
