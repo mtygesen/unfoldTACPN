@@ -68,6 +68,7 @@ private:
     void parseNamedSort(rapidxml::xml_node<>* element);
     unfoldtacpn::Colored::ArcExpression_ptr parseArcExpression(rapidxml::xml_node<>* element, const Colored::ColorType* type);
     unfoldtacpn::Colored::GuardExpression_ptr parseGuardExpression(rapidxml::xml_node<>* element, const Colored::ColorType* type);
+    const Colored::ColorType* inferGuardColorType(rapidxml::xml_node<>* element);
     unfoldtacpn::Colored::ColorExpression_ptr parseColorExpression(rapidxml::xml_node<>* element, const Colored::ColorType* type);
     unfoldtacpn::Colored::AllExpression_ptr parseAllExpression(rapidxml::xml_node<>* element);
     const unfoldtacpn::Colored::ColorType* parseUserSort(rapidxml::xml_node<>* element);
@@ -97,4 +98,3 @@ private:
 };
 }
 #endif // PNMLPARSER_H
-
