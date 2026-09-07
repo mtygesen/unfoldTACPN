@@ -61,11 +61,10 @@ std::string guardComparison(const char* op, const std::string& left, const std::
 }
 }
 
-BOOST_AUTO_TEST_CASE(GuardAllowsIndependentOperandTypes) {
+BOOST_AUTO_TEST_CASE(GuardRejectsDifferentOperandTypes) {
     for (const auto* op : {"lt", "gt", "leq", "geq", "eq", "neq"}) {
         ColoredPetriNetBuilder builder;
-        parseGuard(builder, guardComparison(op, guardVariable("x"), guardVariable("y")));
-        BOOST_CHECK_EQUAL(builder.getTransitionCount(), 1);
+        BOOST_CHECK_THROW(parseGuard(builder, guardComparison(op, guardVariable("x"), guardVariable("y"))), std::invalid_argument);
     }
     for (const auto* op : {"successor", "predecessor"}) {
         const auto unary = [op](const char* name) {
@@ -73,13 +72,11 @@ BOOST_AUTO_TEST_CASE(GuardAllowsIndependentOperandTypes) {
                 "</" + op + "></subterm>";
         };
         ColoredPetriNetBuilder builder;
-        parseGuard(builder, guardComparison("eq", unary("x"), unary("y")));
-        BOOST_CHECK_EQUAL(builder.getTransitionCount(), 1);
+        BOOST_CHECK_THROW(parseGuard(builder, guardComparison("eq", unary("x"), unary("y"))), std::invalid_argument);
     }
     ColoredPetriNetBuilder builder;
-    parseGuard(builder, guardComparison("eq", guardVariable("e"),
-        "<subterm><useroperator declaration=\"b0\"/></subterm>"));
-    BOOST_CHECK_EQUAL(builder.getTransitionCount(), 1);
+    BOOST_CHECK_THROW(parseGuard(builder, guardComparison("eq", guardVariable("e"),
+        "<subterm><useroperator declaration=\"b0\"/></subterm>")), std::invalid_argument);
 }
 
 BOOST_AUTO_TEST_CASE(GuardConstantsResolveWithinEachComparison) {

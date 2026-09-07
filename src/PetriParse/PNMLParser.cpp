@@ -234,9 +234,14 @@ unfoldtacpn::Colored::GuardExpression_ptr PNMLParser::parseGuardExpression(rapid
         if (leftType == nullptr && rightType == nullptr) {
             throw std::invalid_argument("There must be at least one variable in each guard comparison.");
         }
-        return std::make_pair(
+        auto colors = std::make_pair(
             parseColorExpression(left, leftType == nullptr ? rightType : leftType, false),
             parseColorExpression(right, rightType == nullptr ? leftType : rightType, false));
+        if (colors.first->getColorType() != colors.second->getColorType()) {
+            throw std::invalid_argument("Both operands of each guard comparison must have the same color type.");
+        }
+        
+        return colors;
     };
     if (strcmp(element->name(), "lt") == 0 || strcmp(element->name(), "lessthan") == 0) {
         auto left = element->first_node();
