@@ -18,6 +18,7 @@
 
 #include "DummyBuilder.h"
 #include "Colored/ColoredPetriNetBuilder.h"
+#include "PetriParse/PNMLParser.h"
 
 #include <boost/test/unit_test.hpp>
 #include <string>
@@ -27,6 +28,88 @@
 namespace utf = boost::unit_test;
 
 using namespace unfoldtacpn;
+
+namespace {
+void parseGuard(ColoredPetriNetBuilder& builder, const std::string& guard) {
+    std::stringstream model;
+    model << R"(<pnml><net id="guard" type="http://www.pnml.org/version-2009/grammar/symmetricnet">
+<declaration><structure><declarations>
+<namedsort id="A" name="A"><finiteintrange start="0" end="10"/></namedsort>
+<namedsort id="B" name="B"><finiteintrange start="0" end="10"/></namedsort>
+<namedsort id="E" name="E"><cyclicenumeration><feconstant id="a0" name="a0"/></cyclicenumeration></namedsort>
+<namedsort id="F" name="F"><cyclicenumeration><feconstant id="b0" name="b0"/></cyclicenumeration></namedsort>
+<variabledecl id="x" name="x"><usersort declaration="A"/></variabledecl>
+<variabledecl id="y" name="y"><usersort declaration="B"/></variabledecl>
+<variabledecl id="e" name="e"><usersort declaration="E"/></variabledecl>
+</declarations></structure></declaration><page id="page"><transition id="t"><condition><structure>)"
+          << guard << R"(</structure></condition></transition></page></net></pnml>)";
+    PNMLParser parser;
+    parser.parse(model, &builder);
+}
+
+std::string guardVariable(const char* name) {
+    return "<subterm><variable refvariable=\"" + std::string(name) + "\"/></subterm>";
+}
+
+std::string guardInteger(int value) {
+    return "<subterm><finiteintrangeconstant value=\"" + std::to_string(value) +
+        "\"><finiteintrange start=\"0\" end=\"10\"/></finiteintrangeconstant></subterm>";
+}
+
+std::string guardComparison(const char* op, const std::string& left, const std::string& right) {
+    return "<" + std::string(op) + ">" + left + right + "</" + op + ">";
+}
+}
+
+BOOST_AUTO_TEST_CASE(GuardAllowsIndependentOperandTypes) {
+    for (const auto* op : {"lt", "gt", "leq", "geq", "eq", "neq"}) {
+        ColoredPetriNetBuilder builder;
+        parseGuard(builder, guardComparison(op, guardVariable("x"), guardVariable("y")));
+        BOOST_CHECK_EQUAL(builder.getTransitionCount(), 1);
+    }
+    for (const auto* op : {"successor", "predecessor"}) {
+        const auto unary = [op](const char* name) {
+            return "<subterm><" + std::string(op) + ">" + guardVariable(name) +
+                "</" + op + "></subterm>";
+        };
+        ColoredPetriNetBuilder builder;
+        parseGuard(builder, guardComparison("eq", unary("x"), unary("y")));
+        BOOST_CHECK_EQUAL(builder.getTransitionCount(), 1);
+    }
+    ColoredPetriNetBuilder builder;
+    parseGuard(builder, guardComparison("eq", guardVariable("e"),
+        "<subterm><useroperator declaration=\"b0\"/></subterm>"));
+    BOOST_CHECK_EQUAL(builder.getTransitionCount(), 1);
+}
+
+BOOST_AUTO_TEST_CASE(GuardConstantsResolveWithinEachComparison) {
+    ColoredPetriNetBuilder builder;
+    parseGuard(builder, "<and><subterm>" +
+        guardComparison("eq", guardVariable("x"), guardInteger(10)) + "</subterm><subterm>" +
+        guardComparison("eq", guardInteger(8), guardVariable("y")) + "</subterm></and>");
+    DummyBuilder unfolded;
+    builder.unfold(unfolded);
+    BOOST_REQUIRE_EQUAL(builder.getUnfoldedTransitionNames().at("t").size(), 1);
+    const auto& name = builder.getUnfoldedTransitionNames().at("t").front();
+    const auto& bindings = builder.getTransitionBindings().at(name);
+    BOOST_REQUIRE_EQUAL(bindings.size(), 2);
+    for (const auto& binding : bindings) {
+        BOOST_CHECK_EQUAL(binding.second, binding.first == "x" ? "10" : "8");
+    }
+}
+
+BOOST_AUTO_TEST_CASE(GuardRejectsConstantOnlyComparisonsAndUnknownVariables) {
+    const auto constants = guardComparison("eq", guardInteger(1), guardInteger(2));
+    for (const auto& guard : {
+        constants,
+        "<and><subterm>" + guardComparison("eq", guardVariable("x"), guardInteger(10)) +
+            "</subterm><subterm>" + constants + "</subterm></and>",
+        guardComparison("eq", guardVariable("missing"), guardVariable("x")),
+        guardComparison("eq", guardVariable("x"), guardInteger(11))}) {
+        ColoredPetriNetBuilder builder;
+        BOOST_CHECK_THROW(parseGuard(builder, guard), std::invalid_argument);
+    }
+}
 
 BOOST_AUTO_TEST_CASE(DirectoryTest) {
     BOOST_REQUIRE(getenv("TEST_FILES"));
