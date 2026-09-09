@@ -298,6 +298,9 @@ const Colored::ColorType* PNMLParser::inferGuardColorType(rapidxml::xml_node<>* 
     while (!pending.empty()) {
         auto* node = pending.back();
         pending.pop_back();
+        if (strcmp(node->name(), "tuple") == 0) {
+            throw std::invalid_argument("Tuple expressions are not allowed in guard comparisons.");
+        }
         if (strcmp(node->name(), "variable") == 0) {
             auto variable = _variables.find(node->first_attribute("refvariable")->value());
             if (variable == _variables.end()) {

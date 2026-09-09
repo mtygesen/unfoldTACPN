@@ -61,6 +61,15 @@ std::string guardComparison(const char* op, const std::string& left, const std::
 }
 }
 
+BOOST_AUTO_TEST_CASE(GuardRejectsTupleComparisons) {
+    const auto tuple = "<subterm><tuple>" + guardVariable("x") + guardVariable("x") + "</tuple></subterm>";
+    for (const auto* op : {"eq", "neq", "lt", "leq", "gt", "geq"}) {
+        ColoredPetriNetBuilder builder;
+        BOOST_CHECK_THROW(parseGuard(builder, guardComparison(op, tuple, tuple)), std::invalid_argument);
+        BOOST_CHECK_THROW(parseGuard(builder, guardComparison(op, guardVariable("x"), tuple)), std::invalid_argument);
+    }
+}
+
 BOOST_AUTO_TEST_CASE(GuardRejectsDifferentOperandTypes) {
     for (const auto* op : {"lt", "gt", "leq", "geq", "eq", "neq"}) {
         ColoredPetriNetBuilder builder;
