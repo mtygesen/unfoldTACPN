@@ -227,43 +227,64 @@ unfoldtacpn::Colored::ArcExpression_ptr PNMLParser::parseArcExpression(rapidxml:
     return nullptr;
 }
 
-unfoldtacpn::Colored::GuardExpression_ptr PNMLParser::parseGuardExpression(rapidxml::xml_node<>* element, const Colored::ColorType* type) {
+unfoldtacpn::Colored::GuardExpression_ptr PNMLParser::parseGuardExpression(rapidxml::xml_node<>* element) {
+    const auto operands = [this](rapidxml::xml_node<>* left, rapidxml::xml_node<>* right) {
+        const auto* leftType = inferGuardColorType(left);
+        const auto* rightType = inferGuardColorType(right);
+        if (leftType == nullptr && rightType == nullptr) {
+            throw std::invalid_argument("There must be at least one variable in each guard comparison.");
+        }
+        auto colors = std::make_pair(
+            parseColorExpression(left, leftType == nullptr ? rightType : leftType, false),
+            parseColorExpression(right, rightType == nullptr ? leftType : rightType, false));
+        if (colors.first->getColorType() != colors.second->getColorType()) {
+            throw std::invalid_argument("Both operands of each guard comparison must have the same color type.");
+        }
+        
+        return colors;
+    };
     if (strcmp(element->name(), "lt") == 0 || strcmp(element->name(), "lessthan") == 0) {
         auto left = element->first_node();
         auto right = left->next_sibling();
-        return std::make_shared<unfoldtacpn::Colored::LessThanExpression>(parseColorExpression(left, type), parseColorExpression(right, type));
+        auto colors = operands(left, right);
+        return std::make_shared<unfoldtacpn::Colored::LessThanExpression>(std::move(colors.first), std::move(colors.second));
     } else if (strcmp(element->name(), "gt") == 0 || strcmp(element->name(), "greaterthan") == 0) {
         auto left = element->first_node();
         auto right = left->next_sibling();
-        return std::make_shared<unfoldtacpn::Colored::GreaterThanExpression>(parseColorExpression(left, type), parseColorExpression(right, type));
+        auto colors = operands(left, right);
+        return std::make_shared<unfoldtacpn::Colored::GreaterThanExpression>(std::move(colors.first), std::move(colors.second));
     } else if (strcmp(element->name(), "leq") == 0 || strcmp(element->name(), "lessthanorequal") == 0) {
         auto left = element->first_node();
         auto right = left->next_sibling();
-        return std::make_shared<unfoldtacpn::Colored::LessThanEqExpression>(parseColorExpression(left, type), parseColorExpression(right, type));
+        auto colors = operands(left, right);
+        return std::make_shared<unfoldtacpn::Colored::LessThanEqExpression>(std::move(colors.first), std::move(colors.second));
     } else if (strcmp(element->name(), "geq") == 0 || strcmp(element->name(), "greaterthanorequal") == 0) {
         auto left = element->first_node();
         auto right = left->next_sibling();
-        return std::make_shared<unfoldtacpn::Colored::GreaterThanEqExpression>(parseColorExpression(left, type), parseColorExpression(right, type));
+        auto colors = operands(left, right);
+        return std::make_shared<unfoldtacpn::Colored::GreaterThanEqExpression>(std::move(colors.first), std::move(colors.second));
     } else if (strcmp(element->name(), "eq") == 0 || strcmp(element->name(), "equality") == 0) {
         auto left = element->first_node();
         auto right = left->next_sibling();
-        return std::make_shared<unfoldtacpn::Colored::EqualityExpression>(parseColorExpression(left, type), parseColorExpression(right, type));
+        auto colors = operands(left, right);
+        return std::make_shared<unfoldtacpn::Colored::EqualityExpression>(std::move(colors.first), std::move(colors.second));
     } else if (strcmp(element->name(), "neq") == 0 || strcmp(element->name(), "inequality") == 0) {
         auto left = element->first_node();
         auto right = left->next_sibling();
-        return std::make_shared<unfoldtacpn::Colored::InequalityExpression>(parseColorExpression(left, type), parseColorExpression(right, type));
+        auto colors = operands(left, right);
+        return std::make_shared<unfoldtacpn::Colored::InequalityExpression>(std::move(colors.first), std::move(colors.second));
     } else if (strcmp(element->name(), "not") == 0) {
-        return std::make_shared<unfoldtacpn::Colored::NotExpression>(parseGuardExpression(element->first_node(), type));
+        return std::make_shared<unfoldtacpn::Colored::NotExpression>(parseGuardExpression(element->first_node()));
     } else if (strcmp(element->name(), "and") == 0) {
         auto left = element->first_node();
         auto right = left->next_sibling();
-        return std::make_shared<unfoldtacpn::Colored::AndExpression>(parseGuardExpression(left, type), parseGuardExpression(right, type));
+        return std::make_shared<unfoldtacpn::Colored::AndExpression>(parseGuardExpression(left), parseGuardExpression(right));
     } else if (strcmp(element->name(), "or") == 0) {
         auto left = element->first_node();
         auto right = left->next_sibling();
-        return std::make_shared<unfoldtacpn::Colored::OrExpression>(parseGuardExpression(left, type), parseGuardExpression(right, type));
+        return std::make_shared<unfoldtacpn::Colored::OrExpression>(parseGuardExpression(left), parseGuardExpression(right));
     } else if (strcmp(element->name(), "subterm") == 0 || strcmp(element->name(), "structure") == 0) {
-        return parseGuardExpression(element->first_node(), type);
+        return parseGuardExpression(element->first_node());
     }
 
     printf("Could not parse '%s' as a guard expression\n", element->name());
@@ -277,17 +298,16 @@ const Colored::ColorType* PNMLParser::inferGuardColorType(rapidxml::xml_node<>* 
     while (!pending.empty()) {
         auto* node = pending.back();
         pending.pop_back();
+        if (strcmp(node->name(), "tuple") == 0) {
+            throw std::invalid_argument("Tuple expressions are not allowed in guard comparisons.");
+        }
         if (strcmp(node->name(), "variable") == 0) {
             auto variable = _variables.find(node->first_attribute("refvariable")->value());
             if (variable == _variables.end()) {
                 throw std::invalid_argument("Unknown variable in guard expression.");
             }
 
-            if (type != nullptr && !(*type == *variable->second->colorType)) {
-                throw std::invalid_argument("All variables in a guard expression must have the same color type.");
-            }
-
-            type = variable->second->colorType;
+            if (type == nullptr) type = variable->second->colorType;
         }
 
         for (auto* child = node->first_node(); child; child = child->next_sibling()) {
@@ -295,14 +315,10 @@ const Colored::ColorType* PNMLParser::inferGuardColorType(rapidxml::xml_node<>* 
         }
     }
 
-    if (type == nullptr) {
-        throw std::invalid_argument("There must be at least one variable in the guard expression.");
-    }
-
     return type;
 }
 
-unfoldtacpn::Colored::ColorExpression_ptr PNMLParser::parseColorExpression(rapidxml::xml_node<>* element, const Colored::ColorType* type) {
+unfoldtacpn::Colored::ColorExpression_ptr PNMLParser::parseColorExpression(rapidxml::xml_node<>* element, const Colored::ColorType* type, bool resolveNamedFromType) {
     if (strcmp(element->name(), "dotconstant") == 0) {
         return std::make_shared<unfoldtacpn::Colored::DotConstantExpression>();
     } else if (strcmp(element->name(), "variable") == 0) {
@@ -314,6 +330,9 @@ unfoldtacpn::Colored::ColorExpression_ptr PNMLParser::parseColorExpression(rapid
         return std::make_shared<unfoldtacpn::Colored::VariableExpression>(variable);
     } else if (strcmp(element->name(), "useroperator") == 0) {
         auto declaration = element->first_attribute("declaration")->value();
+        if (!resolveNamedFromType) {
+            return std::make_shared<unfoldtacpn::Colored::UserOperatorExpression>(&_global_scope[declaration]);
+        }
         for (const auto& color : *type) {
             if (!color.isTuple() && color.getColorName() == declaration) {
                 return std::make_shared<unfoldtacpn::Colored::UserOperatorExpression>(&color);
@@ -322,18 +341,18 @@ unfoldtacpn::Colored::ColorExpression_ptr PNMLParser::parseColorExpression(rapid
 
         throw std::invalid_argument("Guard constant does not belong to the guard variable color type.");
     } else if (strcmp(element->name(), "successor") == 0) {
-        return std::make_shared<unfoldtacpn::Colored::SuccessorExpression>(parseColorExpression(element->first_node(), type));
+        return std::make_shared<unfoldtacpn::Colored::SuccessorExpression>(parseColorExpression(element->first_node(), type, resolveNamedFromType));
     } else if (strcmp(element->name(), "predecessor") == 0) {
-        return std::make_shared<unfoldtacpn::Colored::PredecessorExpression>(parseColorExpression(element->first_node(), type));
+        return std::make_shared<unfoldtacpn::Colored::PredecessorExpression>(parseColorExpression(element->first_node(), type, resolveNamedFromType));
     } else if (strcmp(element->name(), "tuple") == 0) {
         std::vector<unfoldtacpn::Colored::ColorExpression_ptr> colors;
         auto* pt = static_cast<const Colored::ProductType*>(type);
         size_t i = 0;
         for (auto it = element->first_node(); it; it = it->next_sibling()) {
             if(type != &_global_scope)
-                colors.push_back(parseColorExpression(it, pt->getType(i)));
+                colors.push_back(parseColorExpression(it, pt->getType(i), resolveNamedFromType));
             else
-                colors.push_back(parseColorExpression(it, type));
+                colors.push_back(parseColorExpression(it, type, resolveNamedFromType));
             ++i;
         }
         if(type != &_global_scope)
@@ -341,7 +360,7 @@ unfoldtacpn::Colored::ColorExpression_ptr PNMLParser::parseColorExpression(rapid
         else
             return std::make_shared<unfoldtacpn::Colored::TupleExpression>(std::move(colors), nullptr);
     } else if (strcmp(element->name(), "subterm") == 0 || strcmp(element->name(), "structure") == 0) {
-        return parseColorExpression(element->first_node(), type);
+        return parseColorExpression(element->first_node(), type, resolveNamedFromType);
     }
     else if (strcmp(element->name(), "finiteintrangeconstant") == 0)
     {
@@ -912,8 +931,7 @@ void PNMLParser::parseTransition(rapidxml::xml_node<>* element) {
             parsePosition(it, x, y);
         } else if (strcmp(it->name(), "condition") == 0) {
             auto structure = it->first_node("structure");
-            expr = parseGuardExpression(structure, inferGuardColorType(structure));
-            expr->validateAndInferColorType();
+            expr = parseGuardExpression(structure);
         } else if (strcmp(it->name(), "conditions") == 0) {
             std::cerr << "ERROR: Conditions not supported" << std::endl;
             exit(ErrorCode);

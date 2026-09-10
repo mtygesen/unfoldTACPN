@@ -310,33 +310,12 @@ namespace unfoldtacpn {
         };
 
         class GuardExpression : public Expression {
-        private:
-            const ColorType* _colorType = nullptr;
-
         public:
             GuardExpression() {}
             virtual ~GuardExpression() {}
 
             virtual bool eval(ExpressionContext& context) const = 0;
 
-            void validateAndInferColorType() {
-                std::set<const Variable*> variables;
-                getVariables(variables);
-                if (variables.empty()) {
-                    throw std::invalid_argument("There must be at least one variable in the guard expression.");
-                }
-
-                _colorType = (*variables.begin())->colorType;
-                for (const auto* variable : variables) {
-                    if (!(*variable->colorType == *_colorType)) {
-                        throw std::invalid_argument("All variables in a guard expression must have the same color type.");
-                    }
-                }
-            }
-
-            const ColorType* getColorType() const {
-                return _colorType;
-            }
         };
 
         typedef std::shared_ptr<GuardExpression> GuardExpression_ptr;
